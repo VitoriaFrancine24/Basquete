@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <nav class="bg-gray-800 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">NBA Dashboard</h1>
+            <div class="relative">
+                <input type="text" id="playerSearch" placeholder="Buscar jogador..." 
+                       class="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+    </nav>
+
+    <!-- Search Results -->
+    <div id="searchResults" class="hidden fixed top-16 right-4 w-96 bg-gray-800 rounded-lg shadow-lg p-4 max-h-96 overflow-y-auto z-50">
+    </div>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Top Players Section -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold mb-6">Principais Jogadores</h2>
+            <div id="topPlayers" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            </div>
+        </section>
+
+        <!-- Upcoming Games Section -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold mb-6">Próximos Jogos</h2>
+            <div id="upcomingGames" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </div>
+        </section>
+
+        <!-- Standings Section -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+                <h2 class="text-2xl font-bold mb-6">Conferência Leste</h2>
+                <div id="eastStandings" class="bg-gray-800 rounded-lg p-4"></div>
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold mb-6">Conferência Oeste</h2>
+                <div id="westStandings" class="bg-gray-800 rounded-lg p-4"></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let lastUpdate = '';
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        function renderTopPlayers(players) {
+            const container = document.getElementById('topPlayers');
+            container.innerHTML = players.slice(0, 8).map(player => `
+                <div class="bg-gray-800 rounded-lg p-4 flex flex-col items-center">
+                    <img src="${player.image}" alt="${player.name}" class="w-32 h-32 object-cover rounded-full mb-4"
+                         onerror="this.src='https://cdn.nba.com/logos/nba/fallback/fallback.png'">
+                    <h3 class="text-lg font-bold mb-2">${player.name}</h3>
+                    <p class="text-gray-400 mb-2">${player.team}</p>
+                    <div class="text-sm">
+                        <p class="mb-1">PPG: ${player.stats.points}</p>
+                        <p class="mb-1">RPG: ${player.stats.rebounds}</p>
+                        <p class="mb-1">APG: ${player.stats.assists}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderUpcomingGames(games) {
+            const container = document.getElementById('upcomingGames');
+            let currentDate = '';
+            let gamesHtml = '';
+
+            games.forEach(game => {
+                if (game.date !== currentDate) {
+                    currentDate = game.date;
+                    gamesHtml += `
+                        <div class="col-span-full">
+                            <h3 class="text-xl font-bold mb-4">${formatDate(game.date)}</h3>
+                        </div>
+                    `;
+                }
+
+                gamesHtml += `
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="flex items-center">
+                                <img src="${game.home_team.logo}" alt="${game.home_team.name}" class="w-12 h-12 mr-2">
+                                <div>
+                                    <p class="font-bold">${game.home_team.nickname}</p>
+                                    <p class="text-sm text-gray-400">${game.home_team.record}</p>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-lg font-bold">vs</p>
+                                <p class="text-sm text-gray-400">${game.time}</p>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="text-right">
+                                    <p class="font-bold">${game.away_team.nickname}</p>
+                                    <p class="text-sm text-gray-400">${game.away_team.record}</p>
+                                </div>
+                                <img src="${game.away_team.logo}" alt="${game.away_team.name}" class="w-12 h-12 ml-2">
+                            </div>
+                        </div>
+                        <div class="text-center text-sm text-gray-400">
+                            <p>${game.arena}</p>
+                            ${game.broadcast ? `<p>TV: ${game.broadcast}</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = gamesHtml;
+        }
+
+        function renderStandings(standings) {
+            const renderConference = (teams, containerId) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = `
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-gray-400 border-b border-gray-700">
+                                    <th class="text-left py-2">Time</th>
+                                    <th class="text-center">V</th>
+                                    <th class="text-center">D</th>
+                                    <th class="text-center">%</th>
+                                    <th class="text-center">GB</th>
+                                    <th class="text-center">L10</th>
+                                    <th class="text-center">STRK</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${teams.map((team, index) => `
+                                    <tr class="border-b border-gray-700">
+                                        <td class="py-2 flex items-center">
+                                            <span class="mr-2">${index + 1}</span>
+                                            <img src="${team.logo}" alt="${team.name}" class="w-8 h-8 mr-2">
+                                            <span>${team.nickname}</span>
+                                        </td>
+                                        <td class="text-center">${team.wins}</td>
+                                        <td class="text-center">${team.losses}</td>
+                                        <td class="text-center">${team.win_pct}</td>
+                                        <td class="text-center">${team.games_behind}</td>
+                                        <td class="text-center">${team.last_10}</td>
+                                        <td class="text-center">${team.streak}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            };
+
+            renderConference(standings.eastern, 'eastStandings');
+            renderConference(standings.western, 'westStandings');
+        }
+
+        function setupPlayerSearch() {
+            const searchInput = document.getElementById('playerSearch');
+            const resultsContainer = document.getElementById('searchResults');
+            let searchTimeout;
+
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                const query = e.target.value.trim();
+
+                if (query.length < 2) {
+                    resultsContainer.classList.add('hidden');
+                    return;
+                }
+
+                searchTimeout = setTimeout(async () => {
+                    try {
+                        const response = await fetch(`/search_player?query=${encodeURIComponent(query)}`);
+                        const players = await response.json();
+
+                        if (players.length > 0) {
+                            resultsContainer.innerHTML = players.map(player => `
+                                <div class="flex items-center p-2 hover:bg-gray-700 rounded cursor-pointer">
+                                    <img src="${player.image}" alt="${player.name}" 
+                                         class="w-12 h-12 rounded-full mr-4"
+                                         onerror="this.src='https://cdn.nba.com/logos/nba/fallback/fallback.png'">
+                                    <div>
+                                        <p class="font-bold">${player.name}</p>
+                                        <p class="text-sm text-gray-400">${player.team} - ${player.position}</p>
+                                    </div>
+                                </div>
+                            `).join('');
+                            resultsContainer.classList.remove('hidden');
+                        } else {
+                            resultsContainer.innerHTML = '<p class="text-center p-4">Nenhum jogador encontrado</p>';
+                            resultsContainer.classList.remove('hidden');
+                        }
+                    } catch (error) {
+                        console.error('Error searching players:', error);
+                    }
+                }, 300);
+            });
+
+            // Hide results when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                    resultsContainer.classList.add('hidden');
+                }
+            });
+        }
+
+        async function updateData() {
+            try {
+                const response = await fetch('/static/data.json');
+                const data = await response.json();
+
+                if (data.last_update !== lastUpdate) {
+                    lastUpdate = data.last_update;
+                    renderTopPlayers(data.players);
+                    renderUpcomingGames(data.games);
+                    renderStandings(data.standings);
+                }
+            } catch (error) {
+                console.error('Error updating data:', error);
+            }
+        }
+
+        // Initial setup
+        setupPlayerSearch();
+        updateData();
+
+        // Update data every 30 seconds
+        setInterval(updateData, 30000);
+    </script>
+</body>
+</html>

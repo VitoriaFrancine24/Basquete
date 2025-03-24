@@ -1,0 +1,6 @@
+basketball_reference_web_scraper
+requests
+beautifulsoup4
+pandas
+aiohttp
+python-dateutil 
